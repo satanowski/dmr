@@ -10,7 +10,10 @@ dmr: dmr.o
 	$(CC) -o dmrtidy dmr.o  $(LDFLAGS)
 
 get:
-	curl -s -o- https://ham-digital.org/user_by_call.php | pv | ./dmrtidy > contacts.csv
+	@curl -s -o- https://ham-digital.org/user_by_call.php | pv | ./dmrtidy > contacts.csv
+
+list_countries:
+	@curl -s -o- https://ham-digital.org/user_by_call.php | ./dmrtidy | cut -d';' -f4 | sort -u
 
 clean:
 	rm -f dmr.o
