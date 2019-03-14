@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 )
 
@@ -70,18 +72,22 @@ func getRawData(url string) (string, error) {
 
 func parseDmrEntry(line string) (DmrEntry, error) {
 	var cc string
+
 	rec := strings.Split(line, ";")
 	if len(rec) < 5 {
 		return DmrEntry{}, errors.New("Wrong number of fields in DMR entry")
 	}
+
 	id, err := strconv.Atoi(rec[2])
 	if err != nil {
 		return DmrEntry{}, errors.New("Wrong DMR ID")
 	}
+
 	cc = CODES[rec[4]]
 	if cc == "" {
 		return DmrEntry{}, errors.New("No such country")
 	}
+
 	return DmrEntry{id, rec[1], rec[3], cc}, nil
 }
 
@@ -91,10 +97,9 @@ func parseCsvUserData(data string) []DmrEntry {
 
 	for _, line := range strings.Split(data, "\n") {
 		entry, err := parseDmrEntry(line)
-		if err != nil {
-			continue
+		if err == nil {
+			result = append(result, entry)
 		}
-		result = append(result, entry)
 	}
 	return result
 }
@@ -130,12 +135,13 @@ func rgxInit(expr *string, kind string) *regexp.Regexp {
 }
 
 func main() {
+	type val_map map[string]interface{}
+
 	var cc = flag.Bool("c", false, "Just print country codes")
 	var f_cc = flag.String("cc", "", "Filter entries Country Code")
 	var f_nm = flag.String("name", "", "Filter entries by Name")
 	var f_cl = flag.String("call", "", "Filter entries by Call Sign")
-	var f_format = flag.String("f", "{id},{call},{name},{cc}", "Format of the output lines")
-	// var format *regexp.Regexp = nil
+	var f_format = flag.String("f", "{{.id}},{{.call}},{{.name}},{{.cc}}", "Format of the output lines")
 	var pass bool
 
 	flag.Parse()
@@ -148,10 +154,7 @@ func main() {
 	cc_rgx := rgxInit(f_cc, "country")
 	nm_rgx := rgxInit(f_nm, "name")
 	cl_rgx := rgxInit(f_cl, "call sign")
-
-	// if *f_format != "" {
-	// 	format = re.MustCompile(*f_format)
-	// }
+	format := template.Must(template.New("").Parse(*f_format))
 
 	data, err := getRawData(URL)
 	if err != nil {
@@ -174,9 +177,15 @@ func main() {
 		}
 
 		if pass {
-			fmt.Println(entry)
+			buf := bytes.Buffer{}
+			format.Execute(&buf, val_map{
+				"id":   entry.Id,
+				"call": entry.Call,
+				"name": entry.Name,
+				"cc":   entry.CountryCode,
+			})
+			fmt.Println(buf.String())
 		}
 	}
-	fmt.Println(*f_format)
 	log.Printf("Retrieved %d records\n", len(entries))
 }
