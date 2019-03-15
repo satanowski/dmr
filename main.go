@@ -19,7 +19,9 @@ import (
 )
 
 const (
-	URL = "https://ham-digital.org/user_by_call.php"
+	VER     = "0.2"
+	USR_URL = "https://ham-digital.org/user_by_call.php"
+	RPT_ULR = "http://przemienniki.net/export/rxf.xml"
 	// Spinner = "◐◓◑◒"
 	Spinner   = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 	CACHE     = ".cache"
@@ -175,7 +177,7 @@ func rgxInit(expr *string, kind string) *regexp.Regexp {
 
 func main() {
 	type val_map map[string]interface{}
-
+	var ver = flag.Bool("v", false, "Print version")
 	var cc = flag.Bool("pc", false, "Just print country codes")
 	var pretty = flag.Bool("p", false, "Print pretty table")
 	var f_cc = flag.String("c", "", "Filter entries Country Code")
@@ -186,6 +188,11 @@ func main() {
 	var w *tabwriter.Writer
 
 	flag.Parse()
+
+	if *ver {
+		fmt.Println("gpcps\t", VER)
+		return
+	}
 
 	if *cc {
 		printCountries()
@@ -201,9 +208,9 @@ func main() {
 	}
 	format := template.Must(template.New("").Parse(raw_format))
 
-	data, err := getRawData(URL)
+	data, err := getRawData(USR_URL)
 	if err != nil {
-		log.Fatalf("Cannot retrieve data from %s", URL)
+		log.Fatalf("Cannot retrieve data from %s", USR_URL)
 	}
 
 	entries := parseCsvUserData(data)
