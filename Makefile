@@ -1,2 +1,2 @@
 build:
-	go build -o dmr main.go codes.go
+	go build -o cps main.go codes.go

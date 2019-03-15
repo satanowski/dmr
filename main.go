@@ -8,10 +8,12 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 	"text/template"
 	"time"
 )
@@ -19,7 +21,9 @@ import (
 const (
 	URL = "https://ham-digital.org/user_by_call.php"
 	// Spinner = "◐◓◑◒"
-	Spinner = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+	Spinner   = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+	CACHE     = ".cache"
+	THRESHOLD = "24h"
 )
 
 type DmrEntry struct {
@@ -49,25 +53,60 @@ func (e DmrEntry) String() string {
 	return fmt.Sprintf("ID: %d\tCall: %s\tName: %s\tCountry: %s", e.Id, e.Call, e.Name, e.CountryCode)
 }
 
+func writeCache(body []byte) error {
+	if len(body) == 0 {
+		return errors.New("Nothing to write")
+	}
+
+	err := ioutil.WriteFile(CACHE, body, 0644)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func readCacheIfValid() []byte {
+	fileStat, err := os.Stat(CACHE)
+	if err != nil {
+		return nil
+	}
+	how_old := time.Since(fileStat.ModTime())
+	threshold, _ := time.ParseDuration(THRESHOLD)
+	if how_old >= threshold {
+		return nil
+	}
+	data, err := ioutil.ReadFile(CACHE)
+	if err != nil {
+		log.Printf("Cannot read cache file!")
+		return nil
+	}
+	return data
+}
+
 /**
  * Retrieve the body of the page of given URL
  */
 func getRawData(url string) (string, error) {
-	go spin(fmt.Sprintf("Getting the data from %s...", url))
-	resp, err := http.Get(url)
-	if err != nil {
-		return "", err
+	data := readCacheIfValid()
+	if data == nil {
+		go spin(fmt.Sprintf("Getting the data from %s...", url))
+		resp, err := http.Get(url)
+		if err != nil {
+			return "", err
+		}
+		data, err = ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		writeCache(data)
+		close(quit)
+	} else {
+		log.Println("Using cached data...")
 	}
-
-	defer resp.Body.Close()
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	close(quit)
 	fmt.Println()
-	return string(body), nil
+	return string(data), nil
 }
 
 func parseDmrEntry(line string) (DmrEntry, error) {
@@ -92,7 +131,7 @@ func parseDmrEntry(line string) (DmrEntry, error) {
 }
 
 func parseCsvUserData(data string) []DmrEntry {
-	log.Println("Parsing the given data...")
+	log.Println("Parsing the given data...\n")
 	var result []DmrEntry
 
 	for _, line := range strings.Split(data, "\n") {
@@ -137,12 +176,14 @@ func rgxInit(expr *string, kind string) *regexp.Regexp {
 func main() {
 	type val_map map[string]interface{}
 
-	var cc = flag.Bool("c", false, "Just print country codes")
-	var f_cc = flag.String("cc", "", "Filter entries Country Code")
-	var f_nm = flag.String("name", "", "Filter entries by Name")
-	var f_cl = flag.String("call", "", "Filter entries by Call Sign")
+	var cc = flag.Bool("pc", false, "Just print country codes")
+	var pretty = flag.Bool("p", false, "Print pretty table")
+	var f_cc = flag.String("c", "", "Filter entries Country Code")
+	var f_nm = flag.String("n", "", "Filter entries by Name")
+	var f_cl = flag.String("s", "", "Filter entries by Call Sign")
 	var f_format = flag.String("f", "{{.id}},{{.call}},{{.name}},{{.cc}}", "Format of the output lines")
 	var pass bool
+	var w *tabwriter.Writer
 
 	flag.Parse()
 
@@ -154,7 +195,11 @@ func main() {
 	cc_rgx := rgxInit(f_cc, "country")
 	nm_rgx := rgxInit(f_nm, "name")
 	cl_rgx := rgxInit(f_cl, "call sign")
-	format := template.Must(template.New("").Parse(*f_format))
+	raw_format := *f_format
+	if *pretty {
+		raw_format = strings.ReplaceAll(raw_format, ",", "\t") + "\t"
+	}
+	format := template.Must(template.New("").Parse(raw_format))
 
 	data, err := getRawData(URL)
 	if err != nil {
@@ -162,6 +207,12 @@ func main() {
 	}
 
 	entries := parseCsvUserData(data)
+	filtered := 0
+
+	if *pretty {
+		w = tabwriter.NewWriter(os.Stdout, 3, 0, 1, ' ', tabwriter.AlignRight)
+	}
+
 	for _, entry := range entries {
 		pass = true
 		if *f_cc != "" {
@@ -184,8 +235,18 @@ func main() {
 				"name": entry.Name,
 				"cc":   entry.CountryCode,
 			})
-			fmt.Println(buf.String())
+
+			if *pretty {
+				fmt.Fprintln(w, buf.String())
+			} else {
+				fmt.Println(buf.String())
+			}
+			filtered++
 		}
 	}
-	log.Printf("Retrieved %d records\n", len(entries))
+	if *pretty {
+		w.Flush()
+	}
+	fmt.Println()
+	log.Printf("Listed %d records out of %d\n", filtered, len(entries))
 }
