@@ -1,3 +1,4 @@
 .gitginore
-dmrfilter/dmrfilter
-dmrtidy/dmrtidy
+.usr.cache
+przemienniki.xml
+cps
