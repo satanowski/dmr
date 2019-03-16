@@ -66,7 +66,7 @@ func main() {
 	var pretty = flag.Bool("p", false, "Print pretty table")
 
 	// Fitler flags
-	var f_cc = flag.String("c", "", "Filter entries Country Code")
+	var f_cc = flag.String("c", "", "Filter entries by Country Code")
 	var f_nm = flag.String("n", "", "Filter entries by Name")
 	var f_cl = flag.String("s", "", "Filter entries by Call Sign")
 
