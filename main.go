@@ -12,11 +12,13 @@ import (
 	"text/tabwriter"
 	"text/template"
 	"time"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 const (
 	VER       = "0.2"
-	USR_URL   = "https://ham-digital.org/user_by_call.php"
+	USR_URL   = "http://www.amateurradio.digital/"
 	RPT_ULR   = "http://przemienniki.net/export/rxf.xml"
 	Spinner   = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
 	USR_CACHE = ".usr.cache"
@@ -56,6 +58,20 @@ func rgxInit(expr *string, kind string) *regexp.Regexp {
 	return reg
 }
 
+func getUsersCSVurl() string {
+	result := ""
+	doc, err := goquery.NewDocument(USR_URL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	doc.Find("a.readmore").Each(func(index int, item *goquery.Selection) {
+		link, _ := item.Attr("href")
+		result = USR_URL + link
+	})
+	return result
+}
+
 func main() {
 	type val_map map[string]interface{}
 
@@ -73,10 +89,10 @@ func main() {
 	// Format
 	var f_format = flag.String(
 		"f",
-		"{{.id}},{{.call}},{{.name}},{{.cc}}",
+		"{{.id}},{{.call}},{{.name}},{{.state}},{{.city}},{{.cc}}",
 		"Format of the output lines")
-
 	var pass bool
+
 	var w *tabwriter.Writer
 
 	flag.Parse()
@@ -106,7 +122,7 @@ func main() {
 	}
 	format := template.Must(template.New("").Parse(raw_format))
 
-	data, err := getRawData(USR_CACHE, USR_URL)
+	data, err := getRawData(USR_CACHE, getUsersCSVurl())
 	if err != nil {
 		log.Fatalf("Cannot retrieve data from %s", USR_URL)
 	}
@@ -136,10 +152,12 @@ func main() {
 		if pass {
 			buf := bytes.Buffer{}
 			format.Execute(&buf, val_map{
-				"id":   entry.Id,
-				"call": entry.Call,
-				"name": entry.Name,
-				"cc":   entry.CountryCode,
+				"id":    entry.Id,
+				"call":  entry.Call,
+				"name":  entry.Name,
+				"state": entry.State,
+				"city":  entry.City,
+				"cc":    entry.CountryCode,
 			})
 
 			if *pretty {
