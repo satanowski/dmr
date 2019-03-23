@@ -6,6 +6,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 type DmrEntry struct {
@@ -19,6 +21,24 @@ type DmrEntry struct {
 
 func (e DmrEntry) String() string {
 	return fmt.Sprintf("ID: %d\tCall: %s\tName: %s\tCity: %s\tState: %s\tCountry: %s", e.Id, e.Call, e.Name, e.City, e.State, e.CountryCode)
+}
+
+func getUsersCSVurl() string {
+	result := ""
+	doc, err := goquery.NewDocument(USR_URL)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	doc.Find("a.readmore").Each(func(index int, item *goquery.Selection) {
+		link, _ := item.Attr("href")
+		result = USR_URL + link
+	})
+	return result
+}
+
+func trim(s string) string {
+	return strings.Trim(s, "\" ")
 }
 
 func parseDmrEntry(line string) (DmrEntry, error) {
@@ -35,10 +55,10 @@ func parseDmrEntry(line string) (DmrEntry, error) {
 
 	return DmrEntry{
 		id,
-		strings.Trim(rec[1], "\""),
-		strings.Trim(rec[2], "\""),
-		strings.Trim(rec[3], "\""),
-		strings.Trim(rec[4], "\""),
+		trim(rec[1]),
+		trim(rec[2]),
+		trim(rec[3]),
+		trim(rec[4]),
 		cc,
 	}, nil
 }

@@ -12,8 +12,6 @@ import (
 	"text/tabwriter"
 	"text/template"
 	"time"
-
-	"github.com/PuerkitoBio/goquery"
 )
 
 const (
@@ -58,20 +56,6 @@ func rgxInit(expr *string, kind string) *regexp.Regexp {
 	return reg
 }
 
-func getUsersCSVurl() string {
-	result := ""
-	doc, err := goquery.NewDocument(USR_URL)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	doc.Find("a.readmore").Each(func(index int, item *goquery.Selection) {
-		link, _ := item.Attr("href")
-		result = USR_URL + link
-	})
-	return result
-}
-
 func main() {
 	type val_map map[string]interface{}
 
@@ -89,7 +73,7 @@ func main() {
 	// Format
 	var f_format = flag.String(
 		"f",
-		"{{.id}},{{.call}},{{.name}},{{.state}},{{.city}},{{.cc}}",
+		"{{.num}},{{.id}},{{.call}},{{.name}},{{.state}},{{.city}},{{.cc}}",
 		"Format of the output lines")
 	var pass bool
 
@@ -158,6 +142,7 @@ func main() {
 				"state": entry.State,
 				"city":  entry.City,
 				"cc":    entry.CountryCode,
+				"num":   filtered + 1,
 			})
 
 			if *pretty {
